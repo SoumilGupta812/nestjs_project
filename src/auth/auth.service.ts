@@ -6,13 +6,17 @@ import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
+import { UserEventsService } from 'src/events/user-events.service';
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(User)
     private postRepository: Repository<User>,
     private jwtService: JwtService,
-  ) {}
+    private readonly userEventsService: UserEventsService,
+  ) {
+    bcrypt.hash('adminpassword', 10).then(console.log);
+  }
 
   async register(registerDto: RegisterDto) {
     const existingUser = await this.postRepository.findOne({
@@ -32,7 +36,7 @@ export class AuthService {
     });
 
     const saveUser = await this.postRepository.save(newlyCreatedUser);
-
+    this.userEventsService.emitUserRegistered(saveUser);
     const { password, ...result } = saveUser;
     return {
       user: result,
@@ -101,6 +105,15 @@ export class AuthService {
     } catch (err) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  async getUserById(id: number) {
+    const user = await this.postRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+    const { password, ...result } = user;
+    return result;
   }
   private async verifyPassword(
     plainPassword: string,
